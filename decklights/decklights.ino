@@ -32,8 +32,17 @@ const int SLOT2 = 13;
 const int SLOT3 = 15;
 const int SLOT4 = 16;
 
+// Driving an SainSmart 5V relay board that activates on LOW.
+// We'll hide this logical flip-flop externally.
+const byte RELAY_OFF = HIGH;
+const byte RELAY_ON = LOW;
+
 ESP8266WebServer server(80);
 ESP8266HTTPUpdateServer httpUpdater;
+
+byte relayRead(int slot) {
+  ~digitalRead(slot);
+}
 
 // Blinks the LED and finally resets back to original value.
 void blinkLED(int interval, int count) {
@@ -50,16 +59,16 @@ void blinkLED(int interval, int count) {
 
 // Enables LED if any slot is in high state.
 void enableLEDOnActivity() {
-  byte slot1Value = digitalRead(SLOT1);
-  byte slot2Value = digitalRead(SLOT2);
-  byte slot3Value = digitalRead(SLOT3);
-  byte slot4Value = digitalRead(SLOT4);
+  byte slot1Value = relayRead(SLOT1);
+  byte slot2Value = relayRead(SLOT2);
+  byte slot3Value = relayRead(SLOT3);
+  byte slot4Value = relayRead(SLOT4);
 
   // TODO: Is the LED reversed?
   if (slot1Value || slot2Value || slot3Value || slot4Value) {
-    digitalWrite(LED_PIN, LOW);
-  } else {
     digitalWrite(LED_PIN, HIGH);
+  } else {
+    digitalWrite(LED_PIN, LOW);
   }
 }
 
@@ -67,10 +76,10 @@ void enableLEDOnActivity() {
 String getStatusJSON() {
   String body = "";
   body += "{";
-  body += "\"slot1\": " + String(digitalRead(SLOT1)) + ",";
-  body += "\"slot2\": " + String(digitalRead(SLOT2)) + ",";
-  body += "\"slot3\": " + String(digitalRead(SLOT3)) + ",";
-  body += "\"slot4\": " + String(digitalRead(SLOT4));
+  body += "\"slot1\": " + String(relayRead(SLOT1)) + ",";
+  body += "\"slot2\": " + String(relayRead(SLOT2)) + ",";
+  body += "\"slot3\": " + String(relayRead(SLOT3)) + ",";
+  body += "\"slot4\": " + String(relayRead(SLOT4));
   body += "}";
 }
 
@@ -89,8 +98,8 @@ void handleStatus(){
   server.send(200, "application/json", body);
 }
 
-void handleSetPinValue(int pin, byte value) {
-  //Serial.printf("Set pin value. pin=%s, value=%s", pin, value);
+void handleSetSlotValue(int pin, byte value) {
+  Serial.printf("Set slot value. pin=%s, value=%s logical_value=%s", pin, value, ~value);
   digitalWrite(pin, value);
   enableLEDOnActivity();
   server.send(200, "application/json", getStatusJSON());
@@ -109,10 +118,10 @@ void setupHardware()
   pinMode(SLOT4,   OUTPUT);
 
   digitalWrite(LED_PIN, HIGH);
-  digitalWrite(SLOT1,   LOW);
-  digitalWrite(SLOT2,   LOW);
-  digitalWrite(SLOT3,   LOW);
-  digitalWrite(SLOT4,   LOW);
+  digitalWrite(SLOT1,   RELAY_OFF);
+  digitalWrite(SLOT2,   RELAY_OFF);
+  digitalWrite(SLOT3,   RELAY_OFF);
+  digitalWrite(SLOT4,   RELAY_OFF);
 }
 
 void setupWiFi() {
@@ -145,14 +154,14 @@ void setupMDNS() {
 // Set up the web routes.
 void setupWebserverRoutes() {
   server.on("/", handleRoot);
-  server.on("/slot1/0", [](){ handleSetPinValue(SLOT1, LOW);  });
-  server.on("/slot1/1", [](){ handleSetPinValue(SLOT1, HIGH); });
-  server.on("/slot2/0", [](){ handleSetPinValue(SLOT2, LOW);  });
-  server.on("/slot2/1", [](){ handleSetPinValue(SLOT2, HIGH); });
-  server.on("/slot3/0", [](){ handleSetPinValue(SLOT3, LOW);  });
-  server.on("/slot3/1", [](){ handleSetPinValue(SLOT3, HIGH); });
-  server.on("/slot4/0", [](){ handleSetPinValue(SLOT4, LOW);  });
-  server.on("/slot4/1", [](){ handleSetPinValue(SLOT4, HIGH); });
+  server.on("/slot1/0", [](){ handleSetSlotValue(SLOT1, RELAY_OFF);  });
+  server.on("/slot1/1", [](){ handleSetSlotValue(SLOT1, RELAY_ON);   });
+  server.on("/slot2/0", [](){ handleSetSlotValue(SLOT2, RELAY_OFF);  });
+  server.on("/slot2/1", [](){ handleSetSlotValue(SLOT2, RELAY_ON);   });
+  server.on("/slot3/0", [](){ handleSetSlotValue(SLOT3, RELAY_OFF);  });
+  server.on("/slot3/1", [](){ handleSetSlotValue(SLOT3, RELAY_ON);   });
+  server.on("/slot4/0", [](){ handleSetSlotValue(SLOT4, RELAY_OFF);  });
+  server.on("/slot4/1", [](){ handleSetSlotValue(SLOT4, RELAY_ON);   });
   server.on("/status", handleStatus);
   server.onNotFound(handleNotFound);
 }
